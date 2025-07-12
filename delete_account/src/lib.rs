@@ -5,7 +5,6 @@ use solana_program::{
     msg,
     program_error::ProgramError,
     pubkey::Pubkey,
-    system_program,
 };
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -20,27 +19,47 @@ fn process_account(
     accounts: &[AccountInfo],
     instruction: &[u8],
 ) -> ProgramResult {
-    if system_program::check_id(program_id) {
-        return ProgramError::IncorrectProgramId;
-    }
-    // security check for account
-    if accounts.len() < 3 {
-        msg!("needs sufficient accounts to process");
-        return ProgramError::NotEnoughAccountKeys;
-    };
-    let account_iter = accounts.iter();
-    let payer = next_account_info(account_iter);
-    let account_to_delete = next_account_info(account_iter);
-    let system_account = next_account_info(account_iter);
     let instructions = Instruction::try_from_slice(instruction)?;
 
-    let lamports = account_to_delete.lamports();
-    // send to payer
+    let mut account_iter = accounts.iter();
+    let recipient = next_account_info(&mut account_iter)?; // address that recieves payment
+
+    let account_to_delete = next_account_info(&mut account_iter)?; // data account to delete
+
+    let signer = next_account_info(&mut account_iter)?;
+    // authority
 
     match instructions {
         Instruction::CloseAccount => {
-            // account delete step
+            // check if the account is owned by this program
+            if *account_to_delete.owner != program_id {
+                msg!("Account is not onwed by this program");
+                return Err(ProgramError::IncorrectProgramId);
+            }
+
+            if !signer.is_signer {
+                msg!("missing required signer");
+                return Err(ProgramError::MissingRequiredSignature);
+            }
+
+            // signer must be the recipient
+            if signer.key != recipient.key {
+                msg!("unauthorized signer");
+                return Err(ProgramError::IllegalOwner);
+            }
+
+            // transfer lamports
+            **recipient.lamports.borrow_mut() += **account_to_delete.lamports.borrow();
+            **account_to_delete.lamports.borrow_mut() = 0;
+
+            //clear data in account_to_delete
+            let mut data = account_to_delete.try_borrow_mut_data()?;
+            for byte in data.iter_mut() {
+                *byte = 0;
+            }
+
+            msg!("accounts closed and lamports transferred");
+            Ok(())
         }
-    };
-    ok(())
+    }
 }
