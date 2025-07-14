@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "programs/counter_program",
+    "programs/caller_program"
+]
