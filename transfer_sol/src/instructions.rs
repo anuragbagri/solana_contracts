@@ -5,13 +5,13 @@ use solana_program::{
     program::invoke,
 };
 
-fn pay_via_cpi(accounts: &[AccountInfo], amount: &u64) -> ProgramResult {
+pub fn pay_via_cpi(accounts: &[AccountInfo], amount: u64) -> ProgramResult {
     let account_iter = &mut accounts.iter();
     let payer = next_account_info(account_iter)?;
     let receiver = next_account_info(account_iter)?;
     let system_program = next_account_info(account_iter)?;
 
-    let txn = system_instruction::transfer(payer.key, receiver.key, *amount);
+    let txn = system_instruction::transfer(payer.key, receiver.key, amount);
     invoke(
         &txn,
         &[payer.clone(), receiver.clone(), system_program.clone()],
@@ -19,12 +19,13 @@ fn pay_via_cpi(accounts: &[AccountInfo], amount: &u64) -> ProgramResult {
     Ok(())
 }
 
-fn pay_via_account(accounts: &[AccountInfo], amount: &u64) -> ProgramResult {
+pub fn pay_via_account(accounts: &[AccountInfo], amount: u64) -> ProgramResult {
     let account_iter = &mut accounts.iter();
     let payer = next_account_info(account_iter)?;
     let reciever = next_account_info(account_iter)?;
 
     // transfer lamport == amount from one token to other
     **payer.try_borrow_mut_lamports()? -= amount;
-    **reciever.try_borrow_mut_data()? += amount;
-};
+    **reciever.try_borrow_mut_lamports()? += amount;
+    Ok(())
+}
