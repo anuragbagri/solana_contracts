@@ -51,5 +51,5 @@ fn process_instruction(
 let pda_data = pda_account.try_borrow_mut_data()?;
 data.serialize(&mut *pda_data);
 
-Ok()
+Ok(())
 }
