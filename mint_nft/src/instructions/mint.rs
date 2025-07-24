@@ -71,6 +71,29 @@ pub fn mint_to(accounts: &[AccountInfo]) -> ProgramResult {
             token_program.clone(),
         ],
     )?;
-}
+    // creating the edition account
+    let edition_account_txn = mpl_instruction::create_master_edition_v3(
+        *token_metadata_program.key,
+        *edition_account.key,
+        *mint_account.key,
+        *mint_authority.key,
+        *metadata_account.key,
+        *payer.key,
+        Some(1),
+    );
 
-// creating the edition account
+    invoke(
+        &edition_account_txn,
+        &[
+            edition_account.clone(),
+            metadata_account.clone(),
+            mint_account.clone(),
+            mint_authority.clone(),
+            payer.clone(),
+            token_metadata_program.clone(),
+            rent.clone(),
+        ],
+    )?;
+
+    Ok(())
+}
