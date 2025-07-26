@@ -21,7 +21,7 @@ pub struct TokenParamter {
     pub decimals: u8,
 }
 
-fn create_mint(accounts: &[AccountInfo], instruction_data: &[u8]) -> ProgramResult {
+pub fn create_mint(accounts: &[AccountInfo], instruction_data: &[u8]) -> ProgramResult {
     let token_arguments = TokenParamter::try_from_slice(instruction_data)?;
 
     let account_iter = &mut accounts.iter();
