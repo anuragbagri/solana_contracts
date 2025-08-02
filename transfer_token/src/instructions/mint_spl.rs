@@ -9,7 +9,7 @@ use spl_token::instruction as token_instruction ;
 pub struct MintQunatity {
     pub quantity : u64
 };
-fn mint_token(accounts: &[AccountInfo] , token_quantity : MintQunatity) -> ProgramResult {
+pub fn mint_token(accounts: &[AccountInfo] , token_quantity : MintQunatity) -> ProgramResult {
     let account_iter = &mut accounts.iter();
     let mint_account = next_account_info(account_iter)?;
     let mint_authority = next_account_info(account_iter)?;

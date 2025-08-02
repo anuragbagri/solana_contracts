@@ -11,7 +11,7 @@ use spl_token::instruction as token_instruction;
 pub struct TokenQuantity {
     pub quantity: u64,
 }
-fn transfer_token(accounts: &[AccountInfo], token_quantity: TokenQuantity) -> ProgramResult {
+pub fn transfer_token(accounts: &[AccountInfo], token_quantity: TokenQuantity) -> ProgramResult {
     let account_iter = &mut accounts.iter();
 
     let mint_account = next_account_info(account_iter)?;
