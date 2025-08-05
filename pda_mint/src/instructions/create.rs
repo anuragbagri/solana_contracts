@@ -25,7 +25,7 @@ pub struct TokenArgs {
 }
 
 // creating the mint for the nft
-fn create_mint(
+pub fn create_mint(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     token_args: TokenArgs,
