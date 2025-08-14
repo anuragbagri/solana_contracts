@@ -330,6 +330,7 @@ dependencies = [
  "solana-program 3.0.0",
  "spl-associated-token-account",
  "spl-token",
+ "thiserror 2.0.14",
 ]
 
 [[package]]
