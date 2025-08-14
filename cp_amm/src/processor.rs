@@ -3,10 +3,11 @@ use solana_program::{
     account_info::{AccountInfo, next_account_info},
     entrypoint::{BumpAllocator, ProgramResult},
     msg,
+    program::invoke_signed,
     program_error::ProgramError,
     pubkey::{self, Pubkey},
 };
-use spl_associated_token_account::tools::account;
+use spl_token::instruction;
 
 use crate::{error::AmmErr, instruction::AmmInstruction, state::Pool};
 
@@ -104,5 +105,74 @@ impl processor {
 
         msg!("pool initialized authority {} bump {}", authority_pda, bump);
         Ok(())
+    }
+
+    fn add_liquidity(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        amount_a: u64,
+        amount_b: u64,
+        min_lp: u64,
+    ) -> ProgramResult {
+        let account_iter = &mut accounts.iter();
+        let signer = next_account_info(account_iter)?;
+        let user_ata_a = next_account_info(account_iter)?; // usdc provider 
+        let user_ata_b = next_account_info(account_iter)?; // sol provider 
+        let pool_account = next_account_info(account_iter)?;
+        let vault_a = next_account_info(account_iter)?;
+        let vault_b = next_account_info(account_iter)?;
+        let lp_mint = next_account_info(account_iter)?;
+        let user_lp_ata = next_account_info(account_iter)?; // ata to recieve the lp token 
+        let token_program = next_account_info(account_iter)?;
+
+        if signer.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let mut pool = Pool::try_from_slice(&pool_account.data.borrow_mut())?;
+        if !pool.is_initialized {
+            return Err(AmmErr::Uninitialized.into());
+        }
+
+        // transfer deposits to the vault
+        let instruction_a = instruction::transfer(
+            token_program.key,
+            user_ata_a.key,
+            &pool.vault_a,
+            signer.key,
+            &[],
+            amount_a,
+        )?;
+
+        invoke_signed(
+            &instruction_a,
+            &[
+                user_ata_a.clone(),
+                vault_a.clone(),
+                signer.clone(),
+                token_program.clone(),
+            ],
+            &[],
+        )?;
+
+        let instruction_b = instruction::transfer(
+            token_program.key,
+            user_ata_b.key,
+            &pool.vault_b,
+            signer.key,
+            &[],
+            amount_b,
+        )?;
+
+        invoke_signed(
+            &instruction_b,
+            &[
+                signer.clone(),
+                vault_b.clone(),
+                user_ata_b.clone(),
+                token_program.clone(),
+            ],
+            &[],
+        )?;
     }
 }
