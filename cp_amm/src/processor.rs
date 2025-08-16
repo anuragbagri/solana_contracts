@@ -1,10 +1,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
-    account_info::{AccountInfo, next_account_info},
+    account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
     program::invoke_signed,
-    program_error::ProgramError,
+    program_error::{ProgramError, UNSUPPORTED_SYSVAR},
     pubkey::Pubkey,
 };
 use spl_associated_token_account::tools::account;
@@ -234,5 +234,53 @@ impl processor {
         pool.serialize(&mut &mut pool_account.data.borrow_mut()[..])?;
 
         Ok(())
+    }
+
+    fn swap_exact_in(program_id: &Pubkey , accounts: &[AccountInfo] , amount_in : u64 , min_out: u64) -> ProgramResult {
+        let account_iter = &mut accounts.iter();
+
+        let user = next_account_info(account_iter)?;
+        let user_src = next_account_info(account_iter)?;
+        let user_dst = next_account_info(account_iter)?;
+        let pool_account = next_account_info(account_iter)?;
+        let vault_in = next_account_info(account_iter)?;
+        let vault_out = next_account_info(account_iter)?;
+        let token_program = next_account_info(account_iter)?;
+
+        if !user.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        };
+        
+        let pool = Pool::try_from_slice(&pool_account.data.borrow())?; 
+          // transfer input into vault_in
+        let tixin = token_instruction::transfer(token_program.key, user_src.key, vault_in.key, user.key, &[], amount_in)?;
+        invoke_signed(&tixin, &[user_src.clone(), vault_in.clone(), user.clone(), token_program.clone()], &[])?;
+
+        // read reserves (after in)
+        let vin = spl_token::state::Account::unpack(&vault_in.data.borrow())?;
+        let vout = spl_token::state::Account::unpack(&vault_out.data.borrow())?;
+        let reserve_in = vin.amount as u128;
+        let reserve_out = vout.amount as u128;
+
+        // fee on input
+        let amount_in_after_fee = (amount_in as u128)
+            .saturating_mul(10000u128.saturating_sub(pool.fee_bps as u128))
+            .checked_div(10000)
+            .ok_or(ProgramError::InvalidInstructionData)?;
+
+        let numerator = reserve_out.saturating_mul(amount_in_after_fee);
+        let denominator = reserve_in.saturating_add(amount_in_after_fee);
+        let amount_out = numerator.checked_div(denominator).ok_or(ProgramError::InvalidInstructionData)? as u64;
+        if amount_out < min_out { return Err(AmmError::SlippageExceeded.into()); }
+
+        // transfer output to user, signed by authority
+        let (auth, _b) = Pubkey::find_program_address(&[b"authority", pool_acc.key.as_ref()], program_id);
+        let seeds = Self::authority_seeds(pool_acc.key, pool.authority_bump);
+        let tixout = token_instruction::transfer(token_program.key, vault_out.key, user_dst.key, &auth, &[], amount_out)?;
+        invoke_signed(&tixout, &[vault_out.clone(), user_dst.clone(), token_program.clone()], &[&seeds])?;
+
+        Ok(())
+
+
     }
 }
