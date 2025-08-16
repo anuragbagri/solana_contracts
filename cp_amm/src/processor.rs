@@ -206,7 +206,33 @@ impl processor {
         let burn_transaction = token_instruction::burn(token_program.key,user_lp_ata.key , lp_mint.key, user.key, &[], lp_amount as u64);
         invoke_signed(&burn_transaction, &[user_lp_ata.clone() , lp_mint.clone(), user.clone(), token_program.clone()], &[])?;
 
+        // computer proportional amounts from current reserves 
+        let va  = spl_token::state::Account::unpack(&vault_a.data.borrow())?;
+        let vb = spl_token::state::Account::unpack(&vault_b.data.borrow())?;
+        let reserve_a = va.amount as u128;
+        let reserve_b = vb.amount as u128;
+
+        let total_lp = pool.total_lp_supply as u128;
+        let out_a = (lp_amount as u128).saturating_mul(reserve_a).checked_div(total_lp).ok_or(ProgramError::InvalidInstructionData)? as u128;
+
+        let out_b = (lp_amount as u128).saturating_mul(reserve_b).checked_div(total_lp).ok_or(ProgramError::InvalidInstructionData)? as u128;
+
+        if out_a < min_a || out_b < min_b { return Err(AmmErr::SlippageExceeded.into()) ; 
+        };
+
+        // transfer from vaults signed by authority 
+        let (auth , bump) = Pubkey::find_program_address(&[b"auhtority", pool_account.key.as_ref()], program_id);
+        let seeds = Self::authority_seeds(pool_account, bump);
+
         
+        let transfer_instruction_a: = token_instruction::transfer(token_program.key, vault_a.key, user_ata_a.key, &auth, &[], out_a)?;
+        invoke_signed(&transfer_instruction_a, &[vault_a.clone(), user_ata_a.clone(), token_program.clone()], &[&seeds])?;
+        let transfer_instruction_b  = token_instruction::transfer(token_program.key, vault_b.key, user_ata_b.key, &auth, &[], out_b)?;
+        invoke_signed(&transfer_instruction_b, &[vault_b.clone(), user_ata_b.clone(), token_program.clone()], &[&seeds])?;
+
+        pool.total_lp_supply = pool.total_lp_supply.saturating_sub(lp_amount);
+        pool.serialize(&mut &mut pool_account.data.borrow_mut()[..])?;
+
         Ok(())
     }
 }
