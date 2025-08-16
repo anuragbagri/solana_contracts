@@ -1,13 +1,14 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     account_info::{AccountInfo, next_account_info},
-    entrypoint::{BumpAllocator, ProgramResult},
+    entrypoint::ProgramResult,
     msg,
     program::invoke_signed,
     program_error::ProgramError,
-    pubkey::{self, Pubkey},
+    pubkey::Pubkey,
 };
-use spl_token::instruction;
+use spl_associated_token_account::tools::account;
+use spl_token::{instruction as token_instruction, solana_program::program_pack::Pack};
 
 use crate::{error::AmmErr, instruction::AmmInstruction, state::Pool};
 
@@ -30,12 +31,12 @@ impl processor {
                 amount_a,
                 amount_b,
                 min_lp,
-            } => Self::add_liquidity(program_id, accounts, amount_a, amount_a, min_lp),
+            } => Self::add_liquidity(program_id, accounts, amount_a, amount_b, min_lp),
             AmmInstruction::RemoveLiquidity {
                 lp_amount,
                 min_a,
                 min_b,
-            } => Self::remove_liquidity(program_id, accounts, min_a, min_b),
+            } => Self::remove_liquidity(program_id, accounts, lp_amount, min_a, min_b),
             AmmInstruction::SwapExactIn { amount_in, min_out } => {
                 Self::swap_exact_in(program_id, accounts, amount_in, min_out)
             }
@@ -134,11 +135,11 @@ impl processor {
             return Err(AmmErr::Uninitialized.into());
         }
 
-        // transfer deposits to the vault
-        let instruction_a = instruction::transfer(
+        // transfer deposits to the vault a and b
+        let instruction_a = token_instruction::transfer(
             token_program.key,
             user_ata_a.key,
-            &pool.vault_a,
+            vault_a.key,
             signer.key,
             &[],
             amount_a,
@@ -155,10 +156,10 @@ impl processor {
             &[],
         )?;
 
-        let instruction_b = instruction::transfer(
+        let instruction_b = token_instruction::transfer(
             token_program.key,
             user_ata_b.key,
-            &pool.vault_b,
+            vault_b.key,
             signer.key,
             &[],
             amount_b,
@@ -174,5 +175,38 @@ impl processor {
             ],
             &[],
         )?;
+        Ok(())
+    }
+
+    fn remove_liquidity(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        lp_amount: u64,
+        min_a: u64,
+        min_b: u64,
+    ) -> ProgramResult {
+        let account_iter = &mut accounts.iter();
+        let user = next_account_info(account_iter)?;
+        let user_lp_ata = next_account_info(account_iter)?;
+        let lp_mint = next_account_info(account_iter)?;
+        let pool_account = next_account_info(account_iter)?;
+        let vault_a = next_account_info(account_iter)?
+        let vault_b = next_account_info(account_iter)?;
+        let user_a_ata = next_account_info(account_iter)?;
+        let user_b_ata = next_account_info(account_iter)?;
+        let token_program = next_account_info(account_iter)?;
+
+        if !user.is_signer {
+            return Err(ProgramError::MissingRequiredSignature); 
+        };
+        let mut pool = Pool::try_from_slice(&pool_account.data.borrow_mut())?;
+        if pool.total_lp_supply == 0 { return Err(AmmErr::Uninitialized.into()); }
+
+        // burn the lp from user 
+        let burn_transaction = token_instruction::burn(token_program.key,user_lp_ata.key , lp_mint.key, user.key, &[], lp_amount as u64);
+        invoke_signed(&burn_transaction, &[user_lp_ata.clone() , lp_mint.clone(), user.clone(), token_program.clone()], &[])?;
+
+        
+        Ok(())
     }
 }
