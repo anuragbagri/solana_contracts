@@ -1,7 +1,7 @@
 use solana_program::program_error::ProgramError;
 use thiserror::Error;
 
-#[derive(Error)]
+#[derive(Error, Debug)]
 pub enum VestingError {
     #[error("invlaid instruction")]
     InvalidInstruction,
