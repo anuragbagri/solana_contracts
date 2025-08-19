@@ -1,13 +1,16 @@
 use borsh::{BorshDeserialize, BorshSerialize, de::EnumExt};
 use solana_program::{
     account_info::{AccountInfo, next_account_info},
+    clock::Clock,
     entrypoint::ProgramResult,
-    example_mocks::solana_sdk::system_program,
+    example_mocks::solana_sdk::{address_lookup_table::state, system_program},
     msg,
     program::invoke,
     program_error::ProgramError,
     pubkey::Pubkey,
+    sysvar::SysvarSerialize,
 };
+use spl_associated_token_account::solana_program::stake::instruction::StakeError;
 
 use crate::{error::VestingError, instruction::VestingInstruction, state::*, util::*};
 use spl_token::instruction;
@@ -159,6 +162,87 @@ impl Processor {
 
         // rent check on the vesting_pda?
         rent_exempt(vesting_pda)?;
+        Ok(())
+    }
+
+    fn process_claim(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+        msg!(" claim vested tokens");
+        let account_iter = &mut accounts.iter();
+        let beneficiary = next_account_info(account_iter)?;
+        let vesting_pda = next_account_info(account_iter)?;
+        let escrow_ata = next_account_info(account_iter)?;
+        let beneficiary_ata = next_account_info(account_iter)?;
+        let mint_account = next_account_info(account_iter)?;
+        let token_program = next_account_info(account_iter)?;
+        let clock_ai = next_account_info(account_iter)?;
+
+        if !beneficiary.is_signer {
+            return Err(VestingError::Unauthorised.into());
+        }
+
+        // read state
+        let mut state: VestingState = {
+            let data = vesting_pda.try_borrow_data()?;
+            VestingState::try_from_slice(&data).map_err(|_| ProgramError::InvalidAccountData)?
+        };
+
+        // pda check
+        let (expected_vesting_pda, vesting_bump) = Pubkey::find_program_address(
+            &[
+                VESTING_SEED,
+                state.beneficiary.as_ref(),
+                state.mint.as_ref(),
+            ],
+            program_id,
+        );
+
+        if vesting_pda.key != &expected_vesting_pda || mint_account.key != &state.mint {
+            return Err(VestingError::Unauthorised.into());
+        }
+        if beneficiary.key != &state.beneficiary {
+            return Err(VestingError::Unauthorised.into());
+        }
+
+        if state.fully_claimed() {
+            return Err(VestingError::AlreadyFullyClaimed.into());
+        };
+
+        let now = Clock::from_account_info(clock_ai)?.unix_timestamp;
+        let claimable = state.claimable(now);
+        if claimable == 0 {
+            return Err(VestingError::NothingClaimable.into());
+        }
+
+        // transfer claimbale from escrow -> beneficiary_ata
+        let signer_seeds: &[&[u8]] = &[
+            VESTING_SEED,
+            state.beneficiary.as_ref(),
+            state.mint.as_ref(),
+            &[vesting_bump],
+        ];
+
+        let transfer_instruction = instruction::transfer(
+            token_program.key,
+            escrow_ata.key,
+            beneficiary_ata.key,
+            vesting_pda.key,
+            &[],
+            claimable as u64,
+        )?;
+
+        invoke(
+            &transfer_instruction,
+            &[
+                escrow_ata.clone(),
+                beneficiary_ata.clone(),
+                token_program.clone(),
+            ],
+        )?;
+
+        // persist claimed
+        state.claimed_amount = state.claimed_amount.saturating_add(claimable);
+        state.serialize(&mut &mut vesting_pda.data.borrow_mut()[..])?;
+
         Ok(())
     }
 }
