@@ -77,7 +77,7 @@ pub fn create_escrow_ata(
 // simple rent exempt check
 pub fn rent_exempt(account: &AccountInfo) -> ProgramResult {
     let rent = Rent::get()?;
-    if !rent.is_exempt(account.lamports(), account.data) {
+    if !rent.is_exempt(account.lamports(), account.data_len()) {
         return Err(VestingError::NotRentExempt.into());
     }
     Ok(())
