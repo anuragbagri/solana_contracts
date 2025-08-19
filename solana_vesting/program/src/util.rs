@@ -3,6 +3,7 @@
 use solana_program::{
     account_info::{AccountInfo, next_account_info},
     entrypoint::ProgramResult,
+    msg,
     program::{invoke, invoke_signed},
     program_error::ProgramError,
     pubkey::Pubkey,
@@ -53,6 +54,10 @@ pub fn create_escrow_ata(
     system_program: &AccountInfo,
     rent_sysvar: &AccountInfo,
 ) -> ProgramResult {
+    if ata_account.lamports() != 0 {
+        return msg!("escrow ata already exists");
+    }
+
     let ata_instruction = create_associated_token_account(
         payer.key,
         owner_pda.key,

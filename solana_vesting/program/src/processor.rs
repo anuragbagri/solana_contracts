@@ -95,7 +95,7 @@ impl Processor {
         // using the helper function
         create_pda_account(
             admin,
-            vesting_pda_expected,
+            vesting_pda,
             program_id,
             &[
                 VESTING_SEED,
@@ -104,7 +104,19 @@ impl Processor {
                 &[vesting_bump],
             ],
             VestingState::LEN,
-        );
+        )?;
+
+        // create escrwo ata
+        create_escrow_ata(
+            admin,
+            vesting_pda,
+            mint_account,
+            escrow_ata,
+            ata_program,
+            token_program,
+            system_program,
+            rent,
+        )?;
 
         Ok(())
     }
