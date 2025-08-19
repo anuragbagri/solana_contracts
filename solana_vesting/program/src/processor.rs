@@ -4,11 +4,13 @@ use solana_program::{
     entrypoint::ProgramResult,
     example_mocks::solana_sdk::system_program,
     msg,
+    program::invoke,
     program_error::ProgramError,
     pubkey::Pubkey,
 };
 
 use crate::{error::VestingError, instruction::VestingInstruction, state::*, util::*};
+use spl_token::instruction;
 
 pub struct Processor;
 
@@ -116,6 +118,43 @@ impl Processor {
             token_program,
             system_program,
             rent,
+        )?;
+
+        // save state
+
+        let state = VestingState {
+            beneficiary: *beneficiary.key,
+            admin: *admin.key,
+            mint: *mint_account.key,
+            escrow_ata: *escrow_ata.key,
+            start_time,
+            cliff_time,
+            end_time,
+            total_amount,
+            claimed_amount: 0,
+            revocable,
+            vesting_bump,
+        };
+        state.serialize(&mut &mut vesting_pda.data.borrow_mut()[..])?;
+
+        // transfer initial total amount from admin_src_ata -> escrow_ata
+        let transfer_instruction = instruction::transfer(
+            token_program.key,
+            admin_src_ata.key,
+            escrow_ata.key,
+            vesting_pda.key,
+            &[],
+            total_amount,
+        )?;
+
+        invoke(
+            &transfer_instruction,
+            &[
+                admin_src_ata.clone(),
+                escrow_ata.clone(),
+                admin.clone(),
+                token_program.clone(),
+            ],
         )?;
 
         Ok(())
