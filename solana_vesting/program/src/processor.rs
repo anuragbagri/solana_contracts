@@ -157,6 +157,8 @@ impl Processor {
             ],
         )?;
 
+        // rent check on the vesting_pda?
+        rent_exempt(vesting_pda)?;
         Ok(())
     }
 }
