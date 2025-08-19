@@ -11,6 +11,8 @@ pub enum VestingError {
     InvalidAccountData,
     #[error("Invalid seed or pda")]
     InvalidSeeds,
+    #[error("Schedule invalid")]
+    InvalidSchedule,
     #[error("Nothing Claimable")]
     NothingClaimable,
     #[error("Already claimed full")]
