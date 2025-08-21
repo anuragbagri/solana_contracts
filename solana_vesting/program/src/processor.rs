@@ -1,16 +1,17 @@
-use borsh::{BorshDeserialize, BorshSerialize, de::EnumExt};
+use std::u64;
+
+use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     account_info::{AccountInfo, next_account_info},
     clock::Clock,
     entrypoint::ProgramResult,
-    example_mocks::solana_sdk::{address_lookup_table::state, system_program},
     msg,
-    program::invoke,
+    program::{invoke, invoke_signed},
     program_error::ProgramError,
     pubkey::Pubkey,
+    system_program,
     sysvar::SysvarSerialize,
 };
-use spl_associated_token_account::solana_program::stake::instruction::StakeError;
 
 use crate::{error::VestingError, instruction::VestingInstruction, state::*, util::*};
 use spl_token::instruction;
@@ -249,8 +250,8 @@ impl Processor {
         let account_iter = &mut accounts.iter();
         let admin = next_account_info(account_iter)?;
         let vesting_pda = next_account_info(account_iter)?;
-        let escrow_pda = next_account_info(account_iter)?;
-        let admin_destination_pda = next_account_info(account_iter)?;
+        let escrow_ata = next_account_info(account_iter)?;
+        let admin_destination_ata = next_account_info(account_iter)?;
         let mint_account = next_account_info(account_iter)?;
         let token_program = next_account_info(account_iter)?;
         let system_program_ai = next_account_info(account_iter)?;
@@ -275,5 +276,76 @@ impl Processor {
         if mint_account.key != &state.mint {
             return Err(VestingError::InvalidAccountData.into());
         };
+
+        // derive pda
+        let (expected_vesting_pda, vesting_bump) = Pubkey::find_program_address(
+            &[
+                VESTING_SEED,
+                state.beneficiary.as_ref(),
+                state.mint.as_ref(),
+            ],
+            program_id,
+        );
+
+        if &expected_vesting_pda != vesting_pda.key {
+            return Err(VestingError::InvalidSeeds.into());
+        };
+
+        if state.revocable {
+            let sweep_instruction = instruction::transfer(
+                token_program.key,
+                escrow_ata.key,
+                admin_destination_ata.key,
+                vesting_pda.key,
+                &[],
+                u64::MAX,
+            )?;
+
+            invoke_signed(
+                &sweep_instruction,
+                &[
+                    escrow_ata.clone(),
+                    admin_destination_ata.clone(),
+                    token_program.clone(),
+                ],
+                &[&[
+                    VESTING_SEED,
+                    state.beneficiary.as_ref(),
+                    state.mint.as_ref(),
+                    &[vesting_bump],
+                ]],
+            )?;
+
+            // close the escrow ata to admin (receives the rent lamports )
+            let close_instruction = instruction::close_account(
+                token_program.key,
+                escrow_ata.key,
+                admin.key,
+                &vesting_pda,
+                &[],
+            )?;
+
+            invoke_signed(
+                &close_instruction,
+                &[escrow_ata.clone(), admin.clone(), token_program.clone()],
+                &[&[
+                    VESTING_SEED,
+                    state.beneficiary.as_ref(),
+                    state.mint.as_ref(),
+                    &[vesting_bump],
+                ]],
+            )?;
+
+            // close vesting pda (to admin ) finally ...
+            **admin.lamports.borrow_mut() = admin.lamports().saturating_add(vesting_pda.lamports());
+            **vesting_pda.lamports.borrow_mut() = 0;
+
+            // zero data
+            let mut d = vesting_pda.try_borrow_mut_data()?;
+            for b in d.iter_mut() {
+                *b = 0;
+            }
+        }
+        Ok(())
     }
 }
