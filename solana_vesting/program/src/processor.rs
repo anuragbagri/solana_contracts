@@ -245,4 +245,35 @@ impl Processor {
 
         Ok(())
     }
+    fn revoke_and_claim(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+        let account_iter = &mut accounts.iter();
+        let admin = next_account_info(account_iter)?;
+        let vesting_pda = next_account_info(account_iter)?;
+        let escrow_pda = next_account_info(account_iter)?;
+        let admin_destination_pda = next_account_info(account_iter)?;
+        let mint_account = next_account_info(account_iter)?;
+        let token_program = next_account_info(account_iter)?;
+        let system_program_ai = next_account_info(account_iter)?;
+
+        if !admin.is_signer {
+            return Err(VestingError::Unauthorised.into());
+        }
+        if system_program_ai.key != &system_program::ID {
+            return Err(ProgramError::IncorrectProgramId.into());
+        }
+
+        // load state
+        let state: VestingState = {
+            let data = vesting_pda.try_borrow_data()?;
+            VestingState::try_from_slice(&data).map_err(|_| ProgramError::InvalidAccountData)?
+        };
+
+        if admin.key != &state.admin {
+            return Err(VestingError::Unauthorised.into());
+        };
+
+        if mint_account.key != &state.mint {
+            return Err(VestingError::InvalidAccountData.into());
+        };
+    }
 }
