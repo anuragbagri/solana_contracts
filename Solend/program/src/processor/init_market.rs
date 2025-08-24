@@ -1,14 +1,12 @@
 use solana_program::{
     account_info::{AccountInfo, next_account_info},
     entrypoint::ProgramResult,
-    example_mocks::solana_sdk::address_lookup_table::state,
-    program_error::ProgramError,
     pubkey::Pubkey,
-    rent::Rent,
+    sysvar::{Sysvar, rent::Rent},
 };
 
 use crate::{error::*, state::*};
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshSerialize;
 
 pub fn process(
     program_id: &Pubkey,
@@ -31,14 +29,14 @@ pub fn process(
     // initiailzie market data
     let mut market_data = market.try_borrow_mut_data()?; // 2 cases == if empty , write all along , if already written update with new params
 
-    let market = Market {
+    let market_init_data = Market {
         admin: *admin.key,
         oracle_program_id,
         bump: 0,
         paused: false,
     };
 
-    market.serialize(&mut *market_data)?;
+    market_init_data.serialize(&mut *market_data)?;
 
     // rent check for market account
     let rent = Rent::get()?;
