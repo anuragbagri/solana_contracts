@@ -30,6 +30,9 @@ pub enum LendError {
 
     #[error("Not implemented")]
     NotImplemented,
+
+    #[error("not rent exempt")]
+    NotRentExempt,
 }
 
 impl From<LendError> for ProgramError {

@@ -43,7 +43,7 @@ pub fn process(
     // rent check for market account
     let rent = Rent::get()?;
     if !rent.is_exempt(market.lamports(), market.data_len()) {
-        return Err(); // error needs to be added
+        return Err(LendError::NotRentExempt.into());
     };
 
     Ok(())
