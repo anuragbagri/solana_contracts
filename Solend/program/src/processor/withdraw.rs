@@ -75,7 +75,7 @@ pub fn process(
         token_program.key,
         &reserve.vault,
         user_ata_account.key,
-        &crate::id(),
+        &crate::id(), // auth will be pda that owns the vault
         &[],
         amount,
     );
@@ -98,7 +98,7 @@ pub fn process(
         .try_borrow_mut_data()?
         .copy_from_slice(&borsh::to_vec(&reserve).unwrap());
 
-    obligation_ai
+    obligation_account
         .try_borrow_mut_data()?
         .copy_from_slice(&borsh::to_vec(&obligation).unwrap());
 
