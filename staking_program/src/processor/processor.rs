@@ -7,8 +7,33 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-use crate::{
-    error::StakeError,
-    instruction::StakingInstruction,
-    state::{Pool, UserStake},
+use crate::{error::StakeError, instruction::StakingInstruction};
+
+// processor struct
+pub struct Processor; 
+
+impl Processor {
+    pub fn process (
+        program_id : &Pubkey,
+        accounts : &AccountInfo,
+        instruction_data : &[u8]
+    ) -> ProgramError {
+        let instruction = StakingInstruction::try_from_slice(instruction_data).map_err(|_| StakeError::InValidInstruction)?;
+
+        match instruction {
+            StakingInstruction::InitializePool { amount } => {
+                Self::
+            },
+            StakingInstruction::Stake { amount }
+            => {
+                Self::
+            },
+            StakingInstruction::Unstake { amount } => {
+                Self::
+            }
+            StakingInstruction::ClaimReward => {
+                Self::
+            }
+        }
+    }
 }
