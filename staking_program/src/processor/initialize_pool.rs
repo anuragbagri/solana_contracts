@@ -9,8 +9,6 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-use crate::error::StakeError;
-
 pub fn initialize_pool(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
