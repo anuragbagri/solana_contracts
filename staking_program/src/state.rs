@@ -7,10 +7,11 @@ pub struct Pool {
     pub authority: Pubkey,
     pub staking_mint: Pubkey,
     pub reward_mint: Pubkey,
+    pub vault: Pubkey,
     pub vault_staked_tokens: Pubkey,
     pub vault_reward_token: Pubkey,
-    pub reward_state: Pubkey,
-    pub total_staked: Pubkey,
+    pub reward_rate: u32,
+    pub total_staked: u64,
     pub last_update_time: i64,
 }
 

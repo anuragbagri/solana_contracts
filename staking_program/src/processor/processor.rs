@@ -8,6 +8,7 @@ use solana_program::{
 };
 
 use crate::{error::StakeError, instruction::StakingInstruction};
+use crate::processor::initialize_pool;
 
 // processor struct
 pub struct Processor; 
