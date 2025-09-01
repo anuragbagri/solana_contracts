@@ -5,7 +5,7 @@ use solana_program::pubkey::Pubkey;
 #[derive(BorshDeserialize, BorshSerialize, Debug, Clone)]
 pub struct Pool {
     pub authority: Pubkey,
-    pub staking_mint: Pubkek,
+    pub staking_mint: Pubkey,
     pub reward_mint: Pubkey,
     pub vault_staked_tokens: Pubkey,
     pub vault_reward_token: Pubkey,
