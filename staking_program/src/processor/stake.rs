@@ -1,5 +1,8 @@
 use solana_program::{
-    account_info::next_account_info, entrypoint::ProgramResult, msg, program_error::ProgramError,
+    account_info::{AccountInfo, next_account_info},
+    entrypoint::ProgramResult,
+    msg,
+    program_error::ProgramError,
     pubkey::Pubkey,
 };
 
@@ -22,12 +25,13 @@ pub fn process_stake(program_id: &Pubkey, accounts: &[AccountInfo], amount: u64)
     if pool_account.owner != program_id || user_stake_account.owner != program_id {
         msg!("Pool/UserStake must be owned by program");
         return Err(ProgramError::MissingRequiredSignature);
-    }
+    };
 
     if amount == 0 {
         msg!("stake amount should be grated than 0");
         return Err(ProgramError::InvalidInstructionData);
-    }
+    };
+    Ok(())
 
     // state update and transfer left
 }
